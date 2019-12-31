@@ -1,6 +1,7 @@
 # flutter_lite_tableview
 
 A flutter tableview which like iOS UITableView. Performance optimization for reuse.
+<br/><img src="https://github.com/flainsky/flutter_tableview/blob/master/shot1.jpeg" alt="demo_picture" style="max-width:100%;"/><br/>
 
 ## Getting Started
 
