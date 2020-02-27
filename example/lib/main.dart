@@ -53,7 +53,6 @@ class _MyHomePageState extends State<MyHomePage> {
             child: LiteTableView(
               liteTableViewController: _liteTableViewController,  //控制器
               isSectionHeaderStay: true,                          //保留section header
-              cacheCellCount: 10,                                 //cell 缓存数量
               sectionCount: sectionList.length,
               rowCountAtSection: ((int section){
                 return itemList.length;
@@ -90,12 +89,39 @@ class _MyHomePageState extends State<MyHomePage> {
 
             ),
           ),
-          FlatButton(
-            color: Colors.orange,
-            child: Text('jump to section 50 row 1'),
-            onPressed: ((){
-              _liteTableViewController.jump(50, 1);
-            }),
+          Expanded(
+            child: Wrap(
+              children: <Widget>[
+                FlatButton(
+                  color: Colors.orange,
+                  child: Text('jump to section 50 row 0'),
+                  onPressed: ((){
+                    _liteTableViewController.jump(50, 0);
+                  }),
+                ),
+                FlatButton(
+                  color: Colors.orange,
+                  child: Text('jump to section 50 row 1'),
+                  onPressed: ((){
+                    _liteTableViewController.jump(50, 1);
+                  }),
+                ),
+                FlatButton(
+                  color: Colors.orange,
+                  child: Text('jump to section 50 row 5'),
+                  onPressed: ((){
+                    _liteTableViewController.jump(50, 5);
+                  }),
+                ),
+                FlatButton(
+                  color: Colors.orange,
+                  child: Text('jump to section 50 row 10'),
+                  onPressed: ((){
+                    _liteTableViewController.jump(50, 10);
+                  }),
+                )
+              ],
+            ),
           )
         ],
       )

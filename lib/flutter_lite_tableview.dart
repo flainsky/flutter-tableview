@@ -68,8 +68,6 @@ class LiteTableView extends StatefulWidget{
     this.liteTableViewController,
     this.initSection = 0,
     this.initRow = 0,
-    this.cacheCellCount = 16,
-    this.cacheHeaderCount = 4
   })  : assert(
   (sectionCount != null),
   '$ErorrFlagBegin sectionCount must > 0 and could not be null. $ErorrFlagEnd',
@@ -149,11 +147,6 @@ class LiteTableView extends StatefulWidget{
   ///初始位置 行
   final int initRow;
 
-  ///缓存的段落数量
-  final int cacheHeaderCount;
-  ///缓存的单元数量
-  final int cacheCellCount;
-
 }
 
 class _LiteTableViewState extends State<LiteTableView> {
@@ -176,8 +169,8 @@ class _LiteTableViewState extends State<LiteTableView> {
   IndexPath topIndexPath;
   double _screenHeight;
 
-  LinkedHashMap<String, Widget> cellCache = LinkedHashMap();
-  LinkedHashMap<String, Widget> headerCache = LinkedHashMap();
+  var scrollListener;
+  var liteTableListener;
 
   bool isCellInScreen(IndexPath currentCell, IndexPath objCell) {
     if (currentCell == objCell) {
@@ -316,7 +309,7 @@ class _LiteTableViewState extends State<LiteTableView> {
       tmpOffset += widget.sectionHeaderHeight(context,i);
       int rowCount = widget.rowCountAtSection(i);
       for(int j = 0; j < rowCount; j++){
-        rowList.add(tmpOffset);
+        rowList.add(tmpOffset.toDouble());
         tmpOffset += widget.cellHeight(context, i, j);
       }
       rowOffsetList.add(rowList);
@@ -347,48 +340,18 @@ class _LiteTableViewState extends State<LiteTableView> {
       this.liteTableViewController = LiteTableViewController();
     }
 
+    if(this.scrollController.hasListeners){
+      this.scrollController.removeListener(scrollListener);
+    }
 
-
-    this.scrollController.addListener(() {
-      double offsetY = this.scrollController.offset;
-
-      if (offsetY <= 0.0) {
-        this._updateCurrentSectionHeaderModel(null, 0);
-      } else {
-        int section = 0;
-        for (int i = 0; i < this.sectionHeaderList.length; i++) {
-          SectionHeaderModel model = this.sectionHeaderList[i];
-          if (offsetY >= model.y && offsetY <= model.sectionMaxY) {
-            section = i;
-            break;
-          }
-        }
-
-        SectionHeaderModel model = this.sectionHeaderList[section];
-        double delta = model.sectionMaxY - this.scrollController.offset;
-        double topOffset;
-        if (delta >= model.height) {
-          topOffset = 0.0;
-        } else {
-          topOffset = delta - model.height;
-        }
-        this._updateCurrentSectionHeaderModel(model, topOffset);
-      }
-    });
+    this.scrollController.addListener(scrollListener);
 
     if(scrollController != null){
       if(liteTableViewController != null){
-        liteTableViewController.addListener((){
-          int section = liteTableViewController.topIndex.section;
-          int row = liteTableViewController.topIndex.row;
-          topIndexPath = new IndexPath(section: section,row: row);
-          isJumping = true;
-          double jumpOffset = rowOffsetList[section][row];
-          if(row == 0){
-            jumpOffset -= widget.sectionHeaderHeight(context,section);
-          }
-          scrollController.jumpTo(jumpOffset);
-        });
+        if(liteTableViewController.hasListeners){
+          liteTableViewController.removeListener(liteTableListener);
+        }
+        liteTableViewController.addListener(liteTableListener);
       }
     }
 
@@ -399,6 +362,8 @@ class _LiteTableViewState extends State<LiteTableView> {
     isJumping = true;
     double jumpOffset = sectionOffsetList[section];
     jumpOffset += rowOffsetList[section][row];
+    jumpOffset += widget.sectionHeaderHeight(context, section);
+
     scrollController.jumpTo(jumpOffset);
   }
 
@@ -429,21 +394,7 @@ class _LiteTableViewState extends State<LiteTableView> {
           else {
             IndexPath ip = IndexPath(section: model.section,row: -1);
             isJumping = false;
-            if(headerCache.containsKey(ip.toString())){
-              itemWidget = headerCache[ip.toString()];
-            }
-            else {
-              itemWidget = this.sectionHeaderList[model.section].headerWidget;
-              headerCache[ip.toString()] = itemWidget;
-            }
-            if(headerCache.length > widget.cacheHeaderCount){
-              if(headerCache.keys.first == ip){
-                headerCache.remove(headerCache.keys.skip(1));
-              }
-              else{
-                headerCache.remove(headerCache.keys.first);
-              }
-            }
+            itemWidget = this.sectionHeaderList[model.section].headerWidget;
           }
 
         } else {
@@ -455,23 +406,7 @@ class _LiteTableViewState extends State<LiteTableView> {
           else{
             IndexPath ip = IndexPath(section: model.section,row: row);
             isJumping = false;
-            if(cellCache.containsKey(ip.toString())){
-              itemWidget = cellCache[ip.toString()];
-            }
-            else {
-              itemWidget = this.widget.cellBuilder(context, model.section, row);
-              if(widget.cacheCellCount > 0) {
-                cellCache[ip.toString()] = itemWidget;
-              }
-            }
-            if(cellCache.length > widget.cacheCellCount){
-              if(cellCache.keys.first == ip){
-                cellCache.remove(cellCache.keys.skip(1));
-              }
-              else{
-                cellCache.remove(cellCache.keys.first);
-              }
-            }
+            itemWidget = this.widget.cellBuilder(context, model.section, row);
           }
         }
 
@@ -550,33 +485,62 @@ class _LiteTableViewState extends State<LiteTableView> {
 
   @override
   void dispose() {
-    // TODO: implement dispose
     super.dispose();
-    if(cellCache != null){
-      cellCache.clear();
-    }
-    if(headerCache != null){
-      headerCache.clear();
-    }
 
-    if (this.widget.controller == null) {
-      this.scrollController.dispose();
+    if(this.scrollController != null && scrollListener != null){
+      this.scrollController.removeListener(scrollListener);
     }
   }
 
   @override
   void initState() {
-
-    this._initScrollController();
     super.initState();
 
+    scrollListener = () {
+      double offsetY = this.scrollController.offset;
+
+      if (offsetY <= 0.0) {
+        this._updateCurrentSectionHeaderModel(null, 0);
+      } else {
+        int section = 0;
+        for (int i = 0; i < this.sectionHeaderList.length; i++) {
+          SectionHeaderModel model = this.sectionHeaderList[i];
+          if (offsetY >= model.y && offsetY <= model.sectionMaxY) {
+            section = i;
+            break;
+          }
+        }
+
+        SectionHeaderModel model = this.sectionHeaderList[section];
+        double delta = model.sectionMaxY - this.scrollController.offset;
+        double topOffset;
+        if (delta >= model.height) {
+          topOffset = 0.0;
+        } else {
+          topOffset = delta - model.height;
+        }
+        this._updateCurrentSectionHeaderModel(model, topOffset);
+      }
+    };
+
+    liteTableListener = (){
+      int section = liteTableViewController.topIndex.section;
+      int row = liteTableViewController.topIndex.row;
+      topIndexPath = new IndexPath(section: section,row: row);
+      isJumping = true;
+      double jumpOffset = rowOffsetList[section][row];
+      jumpOffset -= widget.sectionHeaderHeight(context,section);
+      scrollController.jumpTo(jumpOffset);
+    };
   }
 
   @override
   Widget build(BuildContext context) {
 
+    _initScrollController();
     makeHeightIndex();
     this._createListView();
+
     Widget listViewFatherWidget;
     if (this.widget.listViewFatherWidgetBuilder != null) {
       listViewFatherWidget =
